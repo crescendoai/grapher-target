@@ -1,0 +1,18 @@
+{
+  "name": "grapher-target",
+  "repository": "ayasdi/grapher-target",
+  "description": "Targetting module for Grapher",
+  "version": "0.0.1",
+  "license": "Apache 2.0",
+  "scripts": {
+    "grapher.js": "duo build/build.js > build/grapher.js",
+    "target-min.js": "uglifyjs target.js -o target-min.js",
+    "test": "npm run grapher.js && grunt jasmine"
+  },
+  "devDependencies": {
+    "duo": "~0.8.10",
+    "grunt": "~0.4.5",
+    "grunt-contrib-jasmine": "~0.8.1",
+    "uglify-js": "~2.4.16"
+  }
+}
