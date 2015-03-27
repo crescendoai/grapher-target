@@ -50,7 +50,8 @@ Import target.js after the main grapher script.
     <script src="grapher.js"></script>
     <script src="target.js"></script>
 
-You can build grapher-target using [Duo](http://duojs.org/):
+You can build Grapher with grapher-target using [Duo](http://duojs.org/) and
+providing Grapher as the argument:
 
     var Grapher = require('ayasdi/grapher');
-    require('ayasdi/grapher-target');
+    require('ayasdi/grapher-target')(Grapher);
