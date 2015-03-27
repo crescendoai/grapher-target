@@ -20,7 +20,7 @@ Returns a node or link index given a point and optionally type.
 
   * type (optional): "nodes" or "links", default "nodes".
 
-###grapher.nearest(point, type, options) **
+###grapher.nearest(point, type, options)
 
 Returns an array of the nearest node or link indices given a point, optionally type, and optionally options.
 
