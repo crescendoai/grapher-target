@@ -5,6 +5,12 @@ Target module for [Grapher](https://github.com/ayasdi/grapher).
 
 Given a point in data space, target a node or link, or find the nearest nodes and links to a point.
 
+Files
+-----
+
+  * [target.js](https://raw.githubusercontent.com/ayasdi/grapher-target/master/target.js)
+  * [target-min.js](https://raw.githubusercontent.com/ayasdi/grapher-target/master/target-min.js)
+
 Usage
 -----
 
@@ -35,13 +41,6 @@ Returns an array of the nearest node or link indices given a point, optionally t
   * options (optional): an object containing d, a distance function, and count.
     - d (optional): a distance function used for comparison. Accepts as arguments a point and a node or link.
     - count (optional): number of nearest indices to return.
-
-
-Files
------
-
-  * [target.js](https://raw.githubusercontent.com/ayasdi/grapher-target/master/target.js)
-  * [target-min.js](https://raw.githubusercontent.com/ayasdi/grapher-target/master/target-min.js)
 
 Installing
 ----------
