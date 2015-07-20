@@ -1,5 +1,6 @@
 {
   "name": "grapher-target",
+  "main": "target.js",
   "repository": "ayasdi/grapher-target",
   "description": "Targetting module for Grapher",
   "version": "0.0.1",
