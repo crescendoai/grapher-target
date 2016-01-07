@@ -8,7 +8,8 @@
   "scripts": {
     "grapher.js": "duo build/build.js > build/grapher.js",
     "target-min.js": "uglifyjs target.js -o target-min.js",
-    "test": "npm run grapher.js && grunt jasmine"
+    "test": "npm run grapher.js && grunt jasmine",
+    "prepublish": "npm run target-min.js"
   },
   "devDependencies": {
     "duo": "~0.8.10",

@@ -103,11 +103,10 @@
       else return this.nearestNode(point, options);
     };
 
-    g.prototype.nearestNode = function (point, options) {
+    g.prototype.nearestNode = function (dataPoint, options) {
       var d = options && options.d || nodeDistanceSquared;
       var count = options && options.count || 1;
-      var dataPoint = this.getDataPosition(point),
-          distances = [],
+      var distances = [],
           sorted = [];
 
       d = getDistanceFunction(dataPoint, d);
@@ -123,11 +122,10 @@
       return nearest;
     };
 
-    g.prototype.nearestLink = function (point, options) {
+    g.prototype.nearestLink = function (dataPoint, options) {
       var d = options && options.d || linkDistanceSquared.bind(this);
       var count = options && options.count || 1;
-      var dataPoint = this.getDataPosition(point),
-          distances = [],
+      var distances = [],
           sorted = [];
 
       d = getDistanceFunction(dataPoint, d);
@@ -143,6 +141,10 @@
     };
   };
 
-  if (typeof module !== 'undefined' && module.exports) module.exports = target;
-  else target(Grapher);
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = target;
+  } else {
+    /* globals Grapher */
+    target(Grapher);
+  }
 })();
