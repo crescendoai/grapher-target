@@ -83,10 +83,10 @@
    return require;
 })({
 1: [function(require, module, exports) {
-Grapher = require('ayasdi/grapher@87d4cf2');
+Grapher = require('ayasdi/grapher');
 require('../target.js')(Grapher);
 
-}, {"ayasdi/grapher@87d4cf2":2,"../target.js":3}],
+}, {"ayasdi/grapher":2,"../target.js":3}],
 2: [function(require, module, exports) {
 // Ayasdi Inc. Copyright 2014
 // Grapher.js may be freely distributed under the Apache 2.0 license
@@ -113,6 +113,7 @@ require('../target.js')(Grapher);
       Color = Grapher.Color = require('./helpers/color.js'),
       Link = Grapher.Link = require('./helpers/link.js'),
       Node = Grapher.Node = require('./helpers/node.js'),
+      Shaders = Grapher.Shaders = require('./helpers/shaders.js'),
       u = Grapher.utils = require('./helpers/utilities.js');
 
   Grapher.prototype = {};
@@ -131,15 +132,13 @@ require('../target.js')(Grapher);
     
     // Extend default properties with options
     this.props = u.extend({
-      color: 0x222222,
+      color: 0xff222222,
       scale: 1,
       translate: [0, 0],
       resolution: window.devicePixelRatio || 1
     }, o);
 
     if (!o.canvas) this.props.canvas = document.createElement('canvas');
-    if (!o.width) this.props.width = this.props.canvas.clientWidth;
-    if (!o.height) this.props.height = this.props.canvas.clientHeight;
     this.canvas = this.props.canvas;
 
     var webGL = this._getWebGL();
@@ -147,14 +146,13 @@ require('../target.js')(Grapher);
       this.props.webGL = webGL;
       this.props.canvas.addEventListener('webglcontextlost', function (e) { this._onContextLost(e); }.bind(this));
       this.props.canvas.addEventListener('webglcontextrestored', function (e) { this._onContextRestored(e); }.bind(this));
+      this.props.linkShaders = new Shaders(this.props.linkShaders);
+      this.props.nodeShaders = new Shaders(this.props.nodeShaders);
     }
 
     // Renderer and view
     this.renderer =  webGL ? new WebGLRenderer(this.props) : new CanvasRenderer(this.props);
     this.rendered = false;
-
-    // Initialize sizes
-    this.resize(this.props.width, this.props.height);
 
     // Sprite array
     this.links = [];
@@ -218,12 +216,18 @@ require('../target.js')(Grapher);
     * grapher.off
     * ------------------
     * 
-    * Remove a listener from an event.
+    * Remove a listener from an event, or all listeners from an event if fn is not specified.
     */
   Grapher.prototype.off = function (event, fn) {
-    var i = u.indexOf(this.handlers[event], fn);
-    if (i > -1) this.handlers[event].splice(i, 1);
-    this.canvas.removeEventListener(event, fn, false);
+    var removeHandler = u.bind(function (fn) {
+      var i = u.indexOf(this.handlers[event], fn);
+      if (i > -1) this.handlers[event].splice(i, 1);
+      this.canvas.removeEventListener(event, fn, false);
+    }, this);
+
+    if (fn && this.handlers[event]) removeHandler(fn);
+    else if (u.isUndefined(fn) && this.handlers[event]) u.each(this.handlers[event], removeHandler);
+
     return this;
   };
 
@@ -345,6 +349,18 @@ require('../target.js')(Grapher);
   };
 
   /**
+    * grapher.clear
+    * ------------------
+    * 
+    * Clears the canvas and grapher data.
+    */
+  Grapher.prototype.clear = function () {
+    this.data({links: [], nodes: []});
+    this.render();
+    return this;
+  };
+
+  /**
     * grapher.render
     * ------------------
     * 
@@ -388,6 +404,7 @@ require('../target.js')(Grapher);
   Grapher.prototype.pause = function () {
     if (this.currentFrame) cancelAnimationFrame(this.currentFrame);
     this.currentFrame = null;
+    return this;
   };
 
   /**
@@ -397,9 +414,6 @@ require('../target.js')(Grapher);
     * Resize the grapher view.
     */
   Grapher.prototype.resize = function (width, height) {
-    this.props.width = width;
-    this.props.height = height;
-
     this.renderer.resize(width, height);
     return this;
   };
@@ -411,8 +425,8 @@ require('../target.js')(Grapher);
     * Specify or retrieve the width.
     */
   Grapher.prototype.width = function (width) {
-    if (u.isUndefined(width)) return this.props.width;
-    this.resize(width, this.props.height);
+    if (u.isUndefined(width)) return this.canvas.clientWidth;
+    this.resize(width, null);
     return this;
   };
 
@@ -423,8 +437,8 @@ require('../target.js')(Grapher);
     * Specify or retrieve the height.
     */
   Grapher.prototype.height = function (height) {
-    if (u.isUndefined(height)) return this.props.height;
-    this.resize(this.props.width, height);
+    if (u.isUndefined(height)) return this.canvas.clientHeight;
+    this.resize(null, height);
     return this;
   };
 
@@ -702,35 +716,43 @@ require('../target.js')(Grapher);
   if (module && module.exports) module.exports = Grapher;
 })();
 
-}, {"./renderers/gl/renderer.js":4,"./renderers/canvas/renderer.js":5,"./helpers/color.js":6,"./helpers/link.js":7,"./helpers/node.js":8,"./helpers/utilities.js":9}],
+}, {"./renderers/gl/renderer.js":4,"./renderers/canvas/renderer.js":5,"./helpers/color.js":6,"./helpers/link.js":7,"./helpers/node.js":8,"./helpers/shaders.js":9,"./helpers/utilities.js":10}],
 4: [function(require, module, exports) {
 ;(function () {
-  var LinkVertexShaderSource = require('./shaders/link.vert'),
-      LinkFragmentShaderSource = require('./shaders/link.frag'),
-      NodeVertexShaderSource = require('./shaders/node.vert'),
-      NodeFragmentShaderSource = require('./shaders/node.frag'),
-      Renderer = require('../renderer.js');
+  var LinkVertexShaderSource = require('./shaders/link.vert.js'),
+      LinkFragmentShaderSource = require('./shaders/link.frag.js'),
+      NodeVertexShaderSource = require('./shaders/node.vert.js'),
+      NodeFragmentShaderSource = require('./shaders/node.frag.js'),
+      Renderer = require('../renderer.js'),
+      Color = require('../../helpers/color.js');
 
   var WebGLRenderer = Renderer.extend({
     init: function (o) {
-      this._super(o);
-      this.initGL(o.webGL);
+      this.gl = o.webGL;
+      
+      this.linkVertexShader = o.linkShaders && o.linkShaders.vertexCode || LinkVertexShaderSource;
+      this.linkFragmentShader = o.linkShaders && o.linkShaders.fragmentCode || LinkFragmentShaderSource;
+      this.nodeVertexShader = o.nodeShaders && o.nodeShaders.vertexCode ||  NodeVertexShaderSource;
+      this.nodeFragmentShader = o.nodeShaders && o.nodeShaders.fragmentCode || NodeFragmentShaderSource;
 
-      this.NODE_ATTRIBUTES = 6;
-      this.LINKS_ATTRIBUTES = 3;
+
+      this._super(o);
+      this.initGL();
+
+      this.NODE_ATTRIBUTES = 9;
+      this.LINK_ATTRIBUTES = 6;
     },
 
     initGL: function (gl) {
-      this.gl = gl;
-      this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+      if (gl) this.gl = gl;
 
-      this.linksProgram = this.initShaders(LinkVertexShaderSource, LinkFragmentShaderSource);
-      this.nodesProgram = this.initShaders(NodeVertexShaderSource, NodeFragmentShaderSource);
+      this.linksProgram = this.initShaders(this.linkVertexShader, this.linkFragmentShader);
+      this.nodesProgram = this.initShaders(this.nodeVertexShader, this.nodeFragmentShader);
 
       this.gl.linkProgram(this.linksProgram);
       this.gl.linkProgram(this.nodesProgram);
 
-      this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+      this.gl.blendFuncSeparate(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA, this.gl.ONE, this.gl.ONE_MINUS_SRC_ALPHA);
       this.gl.enable(this.gl.BLEND);
     },
 
@@ -757,27 +779,37 @@ require('../target.js')(Grapher);
         var node = this.nodeObjects[i];
         var cx = this.transformX(node.x) * this.resolution;
         var cy = this.transformY(node.y) * this.resolution;
-        var r = node.r * Math.abs(this.scale * this.resolution);
-        var color = node.color;
+        var r = node.r * Math.abs(this.scale * this.resolution) + 1;
+        // adding few px to keep shader area big enough for antialiasing pixesls
+        var shaderSize = r + 10;
+        var rgba = Color.fromIntToRgba(node.color);
 
-
-        this.nodes[j++] = (cx - r);
-        this.nodes[j++] = (cy - r);
-        this.nodes[j++] = color;
+        this.nodes[j++] = (cx - shaderSize);
+        this.nodes[j++] = (cy - shaderSize);
+        this.nodes[j++] = rgba.r;
+        this.nodes[j++] = rgba.g;
+        this.nodes[j++] = rgba.b;
+        this.nodes[j++] = rgba.a;
         this.nodes[j++] = cx;
         this.nodes[j++] = cy;
         this.nodes[j++] = r;
 
-        this.nodes[j++] = (cx + (1 + Math.sqrt(2))*r);
-        this.nodes[j++] = cy - r;
-        this.nodes[j++] = color;
+        this.nodes[j++] = (cx + (1 + Math.sqrt(2)) * shaderSize);
+        this.nodes[j++] = cy - shaderSize;
+        this.nodes[j++] = rgba.r;
+        this.nodes[j++] = rgba.g;
+        this.nodes[j++] = rgba.b;
+        this.nodes[j++] = rgba.a ;
         this.nodes[j++] = cx;
         this.nodes[j++] = cy;
         this.nodes[j++] = r;
 
-        this.nodes[j++] = (cx - r);
-        this.nodes[j++] = (cy + (1 + Math.sqrt(2))*r);
-        this.nodes[j++] = color;
+        this.nodes[j++] = (cx - shaderSize);
+        this.nodes[j++] = (cy + (1 + Math.sqrt(2)) * shaderSize);
+        this.nodes[j++] = rgba.r;
+        this.nodes[j++] = rgba.g;
+        this.nodes[j++] = rgba.b;
+        this.nodes[j++] = rgba.a;
         this.nodes[j++] = cx;
         this.nodes[j++] = cy;
         this.nodes[j++] = r;
@@ -793,24 +825,33 @@ require('../target.js')(Grapher);
         var y1 = this.transformY(link.y1) * this.resolution;
         var x2 = this.transformX(link.x2) * this.resolution;
         var y2 = this.transformY(link.y2) * this.resolution;
-        var color = link.color;
+        var rgba = Color.fromIntToRgba(link.color);
 
         this.links[j++] = x1;
         this.links[j++] = y1;
-        this.links[j++] = color;
+        this.links[j++] = rgba.r;
+        this.links[j++] = rgba.g;
+        this.links[j++] = rgba.b;
+        this.links[j++] = rgba.a;
 
         this.links[j++] = x2;
         this.links[j++] = y2;
-        this.links[j++] = color;
+        this.links[j++] = rgba.r;
+        this.links[j++] = rgba.g;
+        this.links[j++] = rgba.b;
+        this.links[j++] = rgba.a;
       }
     },
 
     resize: function (width, height) {
       this._super(width, height);
-      this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+      this.gl.viewport(0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight);
     },
 
     render: function () {
+      this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+
+      this.resize();
       this.updateNodesBuffer();
       this.updateLinksBuffer();
       this.renderLinks(); // links have to be rendered first because of blending;
@@ -831,16 +872,20 @@ require('../target.js')(Grapher);
       this.gl.uniform2f(resolutionLocation, this.canvas.width, this.canvas.height);
 
       var positionLocation = this.gl.getAttribLocation(program, 'a_position');
-      var colorLocation = this.gl.getAttribLocation(program, 'a_color');
+      var rgbaLocation = this.gl.getAttribLocation(program, 'a_rgba');
       
       this.gl.enableVertexAttribArray(positionLocation);
-      this.gl.enableVertexAttribArray(colorLocation);
+      this.gl.enableVertexAttribArray(rgbaLocation);
 
-      this.gl.vertexAttribPointer(positionLocation, 2, this.gl.FLOAT, false, this.LINKS_ATTRIBUTES * Float32Array.BYTES_PER_ELEMENT, 0);
-      this.gl.vertexAttribPointer(colorLocation, 1, this.gl.FLOAT, false, this.LINKS_ATTRIBUTES * Float32Array.BYTES_PER_ELEMENT, 8);
+      this.gl.vertexAttribPointer(positionLocation, 2, this.gl.FLOAT, false, this.LINK_ATTRIBUTES  * Float32Array.BYTES_PER_ELEMENT, 0);
+      this.gl.vertexAttribPointer(rgbaLocation, 4, this.gl.FLOAT, false, this.LINK_ATTRIBUTES  * Float32Array.BYTES_PER_ELEMENT, 8);
 
-      this.gl.lineWidth(this.lineWidth * Math.abs(this.scale * this.resolution));
-      this.gl.drawArrays(this.gl.LINES, 0, this.links.length/this.LINKS_ATTRIBUTES);
+      var lineWidthRange = this.gl.getParameter(this.gl.ALIASED_LINE_WIDTH_RANGE), // ex [1,10] 
+          lineWidth = this.lineWidth * Math.abs(this.scale * this.resolution),
+          lineWidthInRange = Math.min(Math.max(lineWidth, lineWidthRange[0]), lineWidthRange[1]);
+
+      this.gl.lineWidth(lineWidthInRange);
+      this.gl.drawArrays(this.gl.LINES, 0, this.links.length/this.LINK_ATTRIBUTES);
     },
 
     renderNodes: function () {
@@ -857,19 +902,19 @@ require('../target.js')(Grapher);
       this.gl.uniform2f(resolutionLocation, this.canvas.width, this.canvas.height);
 
       var positionLocation = this.gl.getAttribLocation(program, 'a_position');
-      var colorLocation = this.gl.getAttribLocation(program, 'a_color');
+      var rgbaLocation = this.gl.getAttribLocation(program, 'a_rgba');
       var centerLocation = this.gl.getAttribLocation(program, 'a_center');
       var radiusLocation = this.gl.getAttribLocation(program, 'a_radius');
       
       this.gl.enableVertexAttribArray(positionLocation);
-      this.gl.enableVertexAttribArray(colorLocation);
+      this.gl.enableVertexAttribArray(rgbaLocation);
       this.gl.enableVertexAttribArray(centerLocation);
       this.gl.enableVertexAttribArray(radiusLocation);
 
-      this.gl.vertexAttribPointer(positionLocation, 2, this.gl.FLOAT, false, this.NODE_ATTRIBUTES * Float32Array.BYTES_PER_ELEMENT, 0);
-      this.gl.vertexAttribPointer(colorLocation, 1, this.gl.FLOAT, false, this.NODE_ATTRIBUTES * Float32Array.BYTES_PER_ELEMENT, 8);
-      this.gl.vertexAttribPointer(centerLocation, 2, this.gl.FLOAT, false, this.NODE_ATTRIBUTES * Float32Array.BYTES_PER_ELEMENT, 12);
-      this.gl.vertexAttribPointer(radiusLocation, 1, this.gl.FLOAT, false, this.NODE_ATTRIBUTES * Float32Array.BYTES_PER_ELEMENT, 20);
+      this.gl.vertexAttribPointer(positionLocation, 2, this.gl.FLOAT, false, this.NODE_ATTRIBUTES  * Float32Array.BYTES_PER_ELEMENT, 0);
+      this.gl.vertexAttribPointer(rgbaLocation, 4, this.gl.FLOAT, false, this.NODE_ATTRIBUTES  * Float32Array.BYTES_PER_ELEMENT, 8);
+      this.gl.vertexAttribPointer(centerLocation, 2, this.gl.FLOAT, false, this.NODE_ATTRIBUTES  * Float32Array.BYTES_PER_ELEMENT, 24);
+      this.gl.vertexAttribPointer(radiusLocation, 1, this.gl.FLOAT, false, this.NODE_ATTRIBUTES  * Float32Array.BYTES_PER_ELEMENT, 32);
 
       this.gl.drawArrays(this.gl.TRIANGLES, 0, this.nodes.length/this.NODE_ATTRIBUTES);
     }
@@ -878,20 +923,76 @@ require('../target.js')(Grapher);
   if (module && module.exports) module.exports = WebGLRenderer;
 })();
 
-}, {"./shaders/link.vert":10,"./shaders/link.frag":11,"./shaders/node.vert":12,"./shaders/node.frag":13,"../renderer.js":14}],
-10: [function(require, module, exports) {
-module.exports = 'uniform vec2 u_resolution;\nattribute vec2 a_position;\nattribute float a_color;\nvarying vec4 color;\nvarying vec2 position;\nvarying vec2 resolution;\nvoid main() {\n  vec2 clipspace = a_position / u_resolution * 2.0 - 1.0;\n  gl_Position = vec4(clipspace * vec2(1, -1), 0, 1);\n  float c = a_color;\n  color.b = mod(c, 256.0); c = floor(c / 256.0);\n  color.g = mod(c, 256.0); c = floor(c / 256.0);\n  color.r = mod(c, 256.0); c = floor(c / 256.0); color /= 255.0;\n  color.a = 1.0;\n}\n';
-}, {}],
+}, {"./shaders/link.vert.js":11,"./shaders/link.frag.js":12,"./shaders/node.vert.js":13,"./shaders/node.frag.js":14,"../renderer.js":15,"../../helpers/color.js":6}],
 11: [function(require, module, exports) {
-module.exports = 'precision mediump float;\nvarying vec4 color;\nvoid main() {\n  gl_FragColor = color;\n}\n';
+/*jshint multistr: true */
+module.exports = ' \
+  uniform vec2 u_resolution; \
+  attribute vec2 a_position; \
+  attribute vec4 a_rgba; \
+  varying vec4 rgba; \
+  void main() { \
+    vec2 clipspace = a_position / u_resolution * 2.0 - 1.0; \
+    gl_Position = vec4(clipspace * vec2(1, -1), 0, 1); \
+    rgba = a_rgba / 255.0; \
+  }';
 }, {}],
 12: [function(require, module, exports) {
-module.exports = 'uniform vec2 u_resolution;\nattribute vec2 a_position;\nattribute float a_color;\nattribute vec2 a_center;\nattribute float a_radius;\nvarying vec4 color;\nvarying vec2 center;\nvarying vec2 resolution;\nvarying float radius;\nvoid main() {\n  vec2 clipspace = a_position / u_resolution * 2.0 - 1.0;\n  gl_Position = vec4(clipspace * vec2(1, -1), 0, 1);\n  float c = a_color;\n  color.b = mod(c, 256.0); c = floor(c / 256.0);\n  color.g = mod(c, 256.0); c = floor(c / 256.0);\n  color.r = mod(c, 256.0); c = floor(c / 256.0); color /= 255.0;\n  color.a = 1.0;\n  radius = a_radius;\n  center = a_center;\n  resolution = u_resolution;\n}\n';
+/*jshint multistr: true */
+module.exports = ' \
+  precision mediump float; \
+  varying vec4 rgba; \
+  void main() { \
+    gl_FragColor = rgba; \
+  }';
+
 }, {}],
 13: [function(require, module, exports) {
-module.exports = 'precision mediump float;\nvarying vec4 color;\nvarying vec2 center;\nvarying vec2 resolution;\nvarying float radius;\nvoid main() {\n  vec4 color0 = vec4(0.0, 0.0, 0.0, 0.0);\n  float x = gl_FragCoord.x;\n  float y = resolution[1] - gl_FragCoord.y;\n  float dx = center[0] - x;\n  float dy = center[1] - y;\n  float distance = sqrt(dx*dx + dy*dy);\n  if ( distance < radius )\n    gl_FragColor = color;\n  else \n    gl_FragColor = color0;\n}\n';
+/*jshint multistr: true */
+module.exports = ' \
+  uniform vec2 u_resolution; \
+  attribute vec2 a_position; \
+  attribute vec4 a_rgba; \
+  attribute vec2 a_center; \
+  attribute float a_radius; \
+  varying vec4 rgba; \
+  varying vec2 center; \
+  varying vec2 resolution; \
+  varying float radius; \
+  void main() { \
+    vec2 clipspace = a_position / u_resolution * 2.0 - 1.0; \
+    gl_Position = vec4(clipspace * vec2(1, -1), 0, 1); \
+    rgba = a_rgba / 255.0; \
+    radius = a_radius; \
+    center = a_center; \
+    resolution = u_resolution; \
+  }';
 }, {}],
 14: [function(require, module, exports) {
+/*jshint multistr: true */
+module.exports = ' \
+  precision mediump float; \
+  varying vec4 rgba; \
+  varying vec2 center; \
+  varying vec2 resolution; \
+  varying float radius; \
+  void main() { \
+    vec4 color0 = vec4(0.0, 0.0, 0.0, 0.0); \
+    float x = gl_FragCoord.x; \
+    float y = resolution[1] - gl_FragCoord.y; \
+    float dx = center[0] - x; \
+    float dy = center[1] - y; \
+    float distance = sqrt(dx * dx + dy * dy); \
+    float diff = distance - radius; \
+    if ( diff < 0.0 ) \
+      gl_FragColor = rgba; \
+    else if ( diff >= 0.0 && diff <= 1.0 ) \
+      gl_FragColor = vec4(rgba.r, rgba.g, rgba.b, rgba.a - diff); \
+    else  \
+      gl_FragColor = color0; \
+  }';
+}, {}],
+15: [function(require, module, exports) {
 ;(function () {
 
   var Renderer = function () {
@@ -907,6 +1008,8 @@ module.exports = 'precision mediump float;\nvarying vec4 color;\nvarying vec2 ce
       this.resolution = o.resolution || 1;
       this.scale = o.scale;
       this.translate = o.translate;
+
+      this.resize();
     },
     setNodes: function (nodes) { this.nodeObjects = nodes; },
     setLinks: function (links) { this.linkObjects = links; },
@@ -917,11 +1020,11 @@ module.exports = 'precision mediump float;\nvarying vec4 color;\nvarying vec2 ce
     untransformX: function (x) { return (x - this.translate[0]) / this.scale; },
     untransformY: function (y) { return (y - this.translate[1]) / this.scale; },
     resize: function (width, height) {
-      var displayWidth  = width * this.resolution;
-      var displayHeight = height * this.resolution;
+      var displayWidth  = (width || this.canvas.clientWidth) * this.resolution;
+      var displayHeight = (height || this.canvas.clientHeight) * this.resolution;
 
-      this.canvas.width  = displayWidth;
-      this.canvas.height = displayHeight;
+      if (this.canvas.width != displayWidth) this.canvas.width  = displayWidth;
+      if (this.canvas.height != displayHeight) this.canvas.height = displayHeight;
     }
   };
 
@@ -980,6 +1083,113 @@ module.exports = 'precision mediump float;\nvarying vec4 color;\nvarying vec2 ce
 })();
 
 }, {}],
+6: [function(require, module, exports) {
+// Ayasdi Inc. Copyright 2014
+// Color.js may be freely distributed under the Apache 2.0 license
+
+var Color = module.exports = {
+  interpolate: interpolate,
+  parse: parse,
+  fromIntToRgb: fromIntToRgb,
+  fromIntToRgba: fromIntToRgba,
+  fromRgbToHex: fromRgbToHex,
+  fromRgbaToHex: fromRgbaToHex,
+  fromIntToRgbString: fromIntToRgbString,
+  fromIntToRgbaString: fromIntToRgbaString,
+  fromRgbStringToInt: fromRgbStringToInt,
+  fromRgbaStringToInt: fromRgbaStringToInt,
+  fromRgbToInt: fromRgbToInt,
+  fromRgbaToInt: fromRgbaToInt,
+  fromHexToInt: fromHexToInt
+};
+
+function interpolate (a, b, amt) {
+  amt = amt === undefined ? 0.5 : amt;
+  var colorA = fromIntToRgba(a),
+      colorB = fromIntToRgba(b),
+      interpolated = {
+        r: colorA.r + (colorB.r - colorA.r) * amt,
+        g: colorA.g + (colorB.g - colorA.g) * amt,
+        b: colorA.b + (colorB.b - colorA.b) * amt,
+        a: colorA.a + (colorB.a - colorA.a) * amt
+      };
+  return fromRgbaToInt(interpolated.r, interpolated.g, interpolated.b, interpolated.a);
+}
+
+function parse (c) {
+  var color = parseInt(c, 10); // usually NaN, in case we pass in an int for color
+  if (typeof c === 'string') {
+    var string = c.replace(/ /g, ''); // strip spaces immediately
+
+    if (c.split('#').length > 1) color = fromHexToInt(string);
+    else if (c.split('rgb(').length > 1) color = fromRgbStringToInt(string);
+    else if (c.split('rgba(').length > 1) color = fromRgbaStringToInt(string);
+  }
+  return color;
+}
+
+function fromIntToRgb (intColor) {
+  return {
+    r: Math.floor(intColor / Math.pow(2, 16)) % Math.pow(2, 8),
+    g: Math.floor(intColor / Math.pow(2, 8)) % Math.pow(2, 8),
+    b: intColor % Math.pow(2, 8)
+  };
+}
+
+function fromIntToRgba (intColor) {
+  return {
+    a: Math.floor(intColor / Math.pow(2, 24)) % Math.pow(2, 8),
+    r: Math.floor(intColor / Math.pow(2, 16)) % Math.pow(2, 8),
+    g: Math.floor(intColor / Math.pow(2, 8)) % Math.pow(2, 8),
+    b: intColor % Math.pow(2, 8)
+  };
+}
+
+function fromRgbToHex (r, g, b) {
+  var rgb = (parseInt(r, 10) * Math.pow(2, 16)) + (parseInt(g, 10) * Math.pow(2, 8)) + parseInt(b, 10);
+  return '#' + (0x1000000 + rgb).toString(16).slice(1);
+}
+
+function fromRgbaToHex (r, g, b, a) {
+  var rgba = (parseInt(a, 10) * Math.pow(2, 24)) + (parseInt(r, 10) * Math.pow(2, 16)) + (parseInt(g, 10) * Math.pow(2, 8)) + parseInt(b, 10);
+  return '#' + ( 0x100000000 + rgba).toString(16).slice(1);
+}
+
+function fromIntToRgbString (intColor) {
+  var rgb = fromIntToRgb(intColor);
+  return 'rgb(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ')';
+}
+
+function fromIntToRgbaString (intColor) {
+  var rgba = fromIntToRgba(intColor);
+  return 'rgba(' + rgba.r + ', ' + rgba.g + ', ' + rgba.b + ', ' + rgba.a / 255 + ')';
+}
+
+function fromRgbStringToInt (string) {
+  var rgb = string.substring(4, string.length - 1).split(',');
+  return fromRgbToInt(rgb[0], rgb[1], rgb[2]);
+}
+
+function fromRgbaStringToInt (string) {
+  var rgba = string.substring(5, string.length - 1).split(',');
+  return fromRgbaToInt(rgba[0], rgba[1], rgba[2], rgba[3] * 255);
+}
+
+function fromRgbToInt (r, g, b) {
+  return fromRgbaToInt(r, g, b, 255);
+}
+
+function fromRgbaToInt (r, g, b, a) {
+  return parseInt(fromRgbaToHex(r, g, b, a ).replace('#', '0x'), 16);
+}
+
+function fromHexToInt (string) {
+  var hex = string.replace('#', '');
+  if (hex.length === 6) hex = 'ff' + hex; // prepend full alpha if needed
+  return parseInt(hex, 16);
+}
+
+}, {}],
 5: [function(require, module, exports) {
 ;(function () {
 
@@ -989,12 +1199,12 @@ module.exports = 'precision mediump float;\nvarying vec4 color;\nvarying vec2 ce
   var CanvasRenderer = Renderer.extend({
     init: function (o) {
       this._super(o);
-
       this.context = this.canvas.getContext('2d');
     },
 
     render: function () {
-      this.context.clearRect( 0 , 0 , this.canvas.width, this.canvas.height );
+      this.resize();
+      this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
       this.renderLinks();
       this.renderNodes();
     },
@@ -1008,7 +1218,7 @@ module.exports = 'precision mediump float;\nvarying vec4 color;\nvarying vec2 ce
 
         this.context.beginPath();
         this.context.arc(cx, cy, r, 0, 2 * Math.PI, false);
-        this.context.fillStyle = Color.toRgb(node.color);
+        this.context.fillStyle = Color.fromIntToRgbaString(node.color);
         this.context.fill();
       }
     },
@@ -1025,8 +1235,7 @@ module.exports = 'precision mediump float;\nvarying vec4 color;\nvarying vec2 ce
         this.context.moveTo(x1, y1);
         this.context.lineTo(x2, y2);
         this.context.lineWidth = this.lineWidth * Math.abs(this.scale * this.resolution);
-
-        this.context.strokeStyle = Color.toRgb(link.color);
+        this.context.strokeStyle = Color.fromIntToRgbaString(link.color);
         this.context.stroke();
       }
     }
@@ -1035,62 +1244,7 @@ module.exports = 'precision mediump float;\nvarying vec4 color;\nvarying vec2 ce
   if (module && module.exports) module.exports = CanvasRenderer;
 })();
 
-}, {"../renderer.js":14,"../../helpers/color.js":6}],
-6: [function(require, module, exports) {
-// Ayasdi Inc. Copyright 2014
-// Color.js may be freely distributed under the Apache 2.0 license
-
-var Color = module.exports = {
-  hexToRgb: hexToRgb,
-  rgbToHex: rgbToHex,
-  toRgb: toRgb,
-  interpolate: interpolate,
-  parse: parse
-};
-
-function hexToRgb (hex) {
-  return {r: (hex >> 16) & 0xff, g: (hex >> 8) & 0xff, b: hex & 0xff};
-};
-
-function rgbToHex (r, g, b) {
-  return r << 16 | g << 8 | b;
-};
-
-function interpolate (a, b, amt) {
-  amt = amt === undefined ? 0.5 : amt;
-  var colorA = hexToRgb(a),
-      colorB = hexToRgb(b),
-      interpolated = {
-        r: colorA.r + (colorB.r - colorA.r) * amt,
-        g: colorA.g + (colorB.g - colorA.g) * amt,
-        b: colorA.b + (colorB.b - colorA.b) * amt
-      };
-  return rgbToHex(interpolated.r, interpolated.g, interpolated.b);
-};
-
-function parse (c) {
-  var color = parseInt(c);
-  if (typeof c === 'string') {
-    if (c.split('#').length > 1) { // hex format '#ffffff'
-      color = parseInt(c.replace('#', ''), 16);
-    }
-
-    else if (c.split('rgb(').length > 1) { // rgb format 'rgb(255, 255, 255)'
-      var rgb = c.substring(4, c.length-1).replace(/ /g, '').split(',');
-      color = rgbToHex(rgb[0], rgb[1], rgb[2]);
-    }
-  }
-  return color;
-};
-
-function toRgb (intColor) {
-  var r = (intColor >> 16) & 255;
-  var g = (intColor >> 8) & 255;
-  var b = intColor & 255;
-
-  return 'rgb(' + r + ', ' + g + ', ' + b + ')';
-};
-}, {}],
+}, {"../renderer.js":15,"../../helpers/color.js":6}],
 7: [function(require, module, exports) {
 ;(function () {
   function Link () {
@@ -1138,6 +1292,39 @@ function toRgb (intColor) {
 
 }, {}],
 9: [function(require, module, exports) {
+;(function () {
+  function Shaders (obj) {
+    this.vertexCode = obj && obj.vertexCode || null;
+    this.fragmentCode = obj && obj.fragmentCode || null;
+    return this;
+  }
+
+  Shaders.prototype.addVertexAttr = function (name, value, size, type, normalized) {
+    var attrs = {
+      name: name,
+      value: value,
+      size: size,
+      type: type,
+      normalized: normalized
+    };
+
+    this.vertexAttrs.push(attrs);
+  };
+
+  Shaders.prototype.addUniformAttr = function (name, value) {
+    var attrs = {
+      name: name,
+      value: value
+    };
+
+    this.uniformAttrs.push(attrs);
+  };
+
+  if (module && module.exports) module.exports = Shaders;
+})();
+
+}, {}],
+10: [function(require, module, exports) {
 /**
  * Utilities
  * =========
@@ -1297,7 +1484,7 @@ function sortedIndex (arr, n) {
 
   while (min < max) {
     var mid = min + max >>> 1;
-    if (n < mid) max = mid;
+    if (n < arr[mid]) max = mid;
     else min = mid + 1;
   }
 
@@ -1518,11 +1705,10 @@ function isNaN (o) {
       else return this.nearestNode(point, options);
     };
 
-    g.prototype.nearestNode = function (point, options) {
+    g.prototype.nearestNode = function (dataPoint, options) {
       var d = options && options.d || nodeDistanceSquared;
       var count = options && options.count || 1;
-      var dataPoint = this.getDataPosition(point),
-          distances = [],
+      var distances = [],
           sorted = [];
 
       d = getDistanceFunction(dataPoint, d);
@@ -1538,11 +1724,10 @@ function isNaN (o) {
       return nearest;
     };
 
-    g.prototype.nearestLink = function (point, options) {
+    g.prototype.nearestLink = function (dataPoint, options) {
       var d = options && options.d || linkDistanceSquared.bind(this);
       var count = options && options.count || 1;
-      var dataPoint = this.getDataPosition(point),
-          distances = [],
+      var distances = [],
           sorted = [];
 
       d = getDistanceFunction(dataPoint, d);
@@ -1558,8 +1743,12 @@ function isNaN (o) {
     };
   };
 
-  if (typeof module !== 'undefined' && module.exports) module.exports = target;
-  else target(Grapher);
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = target;
+  } else {
+    /* globals Grapher */
+    target(Grapher);
+  }
 })();
 
 }, {}]}, {}, {"1":""})
