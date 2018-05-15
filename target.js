@@ -116,10 +116,13 @@
         var index = g.utils.sortedIndex(distances, dist);
         distances.splice(index, 0, dist);
         sorted.splice(index, 0, i);
+        if (distances.length > count) {
+          distances.splice(-1, 1);
+          sorted.splice(-1, 1);
+        }
       });
 
-      var nearest = sorted.slice(0, count);
-      return nearest;
+      return sorted;
     };
 
     g.prototype.nearestLink = function (dataPoint, options) {
@@ -134,10 +137,13 @@
         var index = g.utils.sortedIndex(distances, dist);
         distances.splice(index, 0, dist);
         sorted.splice(index, 0, i);
+        if (distances.length > count) {
+          distances.splice(-1, 1);
+          sorted.splice(-1, 1);
+        }
       });
 
-      var nearest = sorted.slice(0, count);
-      return nearest;
+      return sorted;
     };
   };
 
