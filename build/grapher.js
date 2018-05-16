@@ -1524,6 +1524,9 @@ window.Grapher = Grapher;
         distances.splice(index, 0, dist);
         sorted.splice(index, 0, i);
         if (distances.length > count) {
+          // trim both arrays so that splicing isn't excessive
+          // this fixes a performance problem caused in Chrome 66:
+          // https://bugs.chromium.org/p/chromium/issues/detail?id=835558
           distances.splice(-1, 1);
           sorted.splice(-1, 1);
         }
@@ -1545,6 +1548,9 @@ window.Grapher = Grapher;
         distances.splice(index, 0, dist);
         sorted.splice(index, 0, i);
         if (distances.length > count) {
+          // trim both arrays so that splicing isn't excessive
+          // this fixes a performance problem caused in Chrome 66:
+          // https://bugs.chromium.org/p/chromium/issues/detail?id=835558
           distances.splice(-1, 1);
           sorted.splice(-1, 1);
         }
