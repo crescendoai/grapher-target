@@ -11,6 +11,17 @@ describe('a grapher instance with target', function () {
     return Math.floor(Math.random() * Math.floor(max));
   }
 
+  function generateNodes(max) {
+    let nodes = [max];
+    for (let i = 0; i < max; i++) {
+      nodes[i] = { x: getRandomInt(MAX_X),
+                   y: getRandomInt(MAX_Y),
+                   r: getRandomInt(MAX_R)
+                 }
+    }
+    return nodes;
+  }
+
   it('trying to find why PhantomJS breaks in Travis', function() {
     expect(0).toBe(0);
   })
