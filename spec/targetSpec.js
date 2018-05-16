@@ -7,6 +7,10 @@ describe('a grapher instance with target', function () {
   const MAX_Y = 2000;
   const MAX_R = 50;
 
+  function getRandomInt(max) {
+    return Math.floor(Math.random() * Math.floor(max));
+  }
+
   it('trying to find why PhantomJS breaks in Travis', function() {
     expect(0).toBe(0);
   })
