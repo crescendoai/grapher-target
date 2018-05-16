@@ -12,7 +12,7 @@ describe('a grapher instance with target', function () {
   }
 
   function generateNodes(max) {
-    let nodes = [max];
+    var nodes = [max];
     for (let i = 0; i < max; i++) {
       nodes[i] = { x: getRandomInt(MAX_X),
                    y: getRandomInt(MAX_Y),
