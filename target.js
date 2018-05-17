@@ -116,10 +116,16 @@
         var index = g.utils.sortedIndex(distances, dist);
         distances.splice(index, 0, dist);
         sorted.splice(index, 0, i);
+        if (distances.length > count) {
+          // trim both arrays so that splicing isn't excessive
+          // this fixes a performance problem caused in Chrome 66:
+          // https://bugs.chromium.org/p/chromium/issues/detail?id=835558
+          distances.splice(-1, 1);
+          sorted.splice(-1, 1);
+        }
       });
 
-      var nearest = sorted.slice(0, count);
-      return nearest;
+      return sorted;
     };
 
     g.prototype.nearestLink = function (dataPoint, options) {
@@ -134,10 +140,16 @@
         var index = g.utils.sortedIndex(distances, dist);
         distances.splice(index, 0, dist);
         sorted.splice(index, 0, i);
+        if (distances.length > count) {
+          // trim both arrays so that splicing isn't excessive
+          // this fixes a performance problem caused in Chrome 66:
+          // https://bugs.chromium.org/p/chromium/issues/detail?id=835558
+          distances.splice(-1, 1);
+          sorted.splice(-1, 1);
+        }
       });
 
-      var nearest = sorted.slice(0, count);
-      return nearest;
+      return sorted;
     };
   };
 
