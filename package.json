@@ -3,7 +3,7 @@
   "main": "target.js",
   "repository": "ayasdi/grapher-target",
   "description": "Targetting module for Grapher",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "Apache-2.0",
   "scripts": {
     "grapher.js": "browserify build/build.js > build/grapher.js",
